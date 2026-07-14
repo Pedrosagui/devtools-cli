@@ -88,7 +88,7 @@ devtools jira anexar KAN-150 caminho/print.png
 devtools jira excluir KAN-150 --confirmar
 ```
 
-`--tipo`, `--prioridade` e o nome passado em `mover` são resolvidos pelo **nome exibido no Jira** (ex: "História", "Em andamento", "High") — o CLI busca o id certo por trás, não precisa saber o número.
+`--tipo`, `--prioridade` e o nome passado em `mover` são resolvidos pelo **nome exibido no Jira** (ex: "História", "Em andamento", "High") — o CLI busca o id certo por trás, não precisa saber o número. Os nomes de status variam por projeto (o board do projeto `KAN`, por exemplo, usa `"Itens concluídos"`, não `"Concluído"`) — se `mover` der erro de transição inválida, ele lista as opções reais do board no próprio erro.
 
 ### Postgres
 
