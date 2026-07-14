@@ -99,7 +99,19 @@ devtools db executar "DELETE FROM weekly_matches WHERE id='...'" --confirmar
 
 `db consultar` só aceita `SELECT`. `db executar` não aceita `SELECT`, e sem `--confirmar` só mostra o SQL que rodaria (dry-run) sem executar nada.
 
-**Confirmação de ações destrutivas (`db executar`, `jira excluir`):** se você rodar o comando num terminal interativo de verdade (você digitando direto no PowerShell/bash), sem passar `--confirmar` o CLI mostra o que vai fazer e pergunta `(s/N)` ali mesmo — não precisa já saber de antemão que precisava do flag. Se o comando for disparado por um agente/script (sem terminal interativo por trás, como quando uma IA roda via ferramenta de shell), ele nunca fica esperando resposta: cai direto no modo seguro, só mostra o que faria e exige `--confirmar` explícito na chamada.
+**Confirmação de ações destrutivas (`db executar`, `jira excluir`):** se você rodar o comando num terminal interativo de verdade (você digitando direto no PowerShell/bash), sem passar `--confirmar` o CLI mostra o que vai fazer e pergunta ali mesmo:
+
+```
+Confirma a execucao? (s = so essa vez / N = nao / sempre = nao perguntar mais):
+```
+
+Responder `sempre` grava `SKIP_CONFIRM=true` no seu `.env` — dali pra frente, nem `db executar` nem `jira excluir` voltam a pedir confirmação ou exigir `--confirmar`, nem quando chamados por um agente/script sem terminal interativo. Pra reverter a qualquer momento:
+
+```bash
+devtools config confirmar-sempre off
+```
+
+Se o comando for disparado por um agente/script (sem terminal interativo por trás, como quando uma IA roda via ferramenta de shell) **e** `SKIP_CONFIRM` ainda não estiver ligado, ele nunca fica esperando resposta: cai direto no modo seguro, só mostra o que faria e exige `--confirmar` explícito na chamada.
 
 ---
 

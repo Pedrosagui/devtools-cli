@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { parseArgs } from './args.js';
 import { logAction } from './audit.js';
-import { canPromptInteractively, askYesNo } from './confirm.js';
+import { resolveConfirmation } from './confirm.js';
+import { setSkipConfirm } from './config.js';
 import * as jira from './jira.js';
 import * as db from './db.js';
 
@@ -24,11 +25,16 @@ Postgres (banco de dev configurado no .env):
   db consultar "<SELECT ...>"
   db executar "<SQL>" --confirmar   (sem --confirmar so mostra o que faria)
 
+Config:
+  config confirmar-sempre on    - para de perguntar/exigir --confirmar em excluir/executar
+  config confirmar-sempre off   - volta a exigir confirmacao (padrao)
+
 Acoes destrutivas (excluir card, db executar) pedem --confirmar. Rodando num
-terminal interativo de verdade, sem --confirmar o CLI pergunta na hora (s/N)
-em vez de exigir que voce ja saiba de antemao. Rodando via agente/script (sem
-TTY), sempre cai no modo seguro: só mostra o que faria e exige --confirmar
-explicito na proxima chamada.
+terminal interativo de verdade, sem --confirmar o CLI pergunta na hora
+(s = so essa vez / N = nao / sempre = nunca mais perguntar). Rodando via
+agente/script (sem TTY), sempre cai no modo seguro: só mostra o que faria e
+exige --confirmar explicito na proxima chamada - a menos que "confirmar-sempre"
+esteja ligado (ver "config" acima).
 
 Exemplos:
   devtools jira mover KAN-150 "Em andamento"
@@ -52,7 +58,20 @@ async function main() {
   }
 
   try {
-    if (group === 'jira') {
+    if (group === 'config') {
+      if (command === 'confirmar-sempre') {
+        const value = positional[0];
+        if (value !== 'on' && value !== 'off') throw new Error('Use: devtools config confirmar-sempre on|off');
+        setSkipConfirm(value === 'on');
+        console.log(
+          value === 'on'
+            ? 'Ok - excluir/executar nao vao mais pedir confirmacao. Pra reverter: devtools config confirmar-sempre off'
+            : 'Ok - excluir/executar voltam a exigir confirmacao.'
+        );
+      } else {
+        console.log(HELP);
+      }
+    } else if (group === 'jira') {
       if (command === 'projeto') {
         const info = await jira.projectInfo(positional[0]);
         printAndAudit(fullCommand, positional, info);
@@ -86,10 +105,10 @@ async function main() {
         await jira.attachFile(positional[0], positional[1]);
         printAndAudit(fullCommand, positional, `Anexo enviado pra ${positional[0]}`);
       } else if (command === 'excluir') {
-        let proceed = !!flags.confirmar;
-        if (!proceed && canPromptInteractively()) {
-          proceed = await askYesNo(`Isso vai excluir ${positional[0]} permanentemente. Confirma?`);
-        }
+        const proceed = await resolveConfirmation({
+          hasConfirmFlag: !!flags.confirmar,
+          question: `Isso vai excluir ${positional[0]} permanentemente. Confirma?`,
+        });
         if (!proceed) {
           console.log(`Isso vai excluir ${positional[0]} permanentemente. Rode de novo com --confirmar pra seguir.`);
           return;
@@ -104,11 +123,11 @@ async function main() {
         const result = await db.runQuery(positional[0]);
         printAndAudit(fullCommand, positional, result);
       } else if (command === 'executar') {
-        let proceed = !!flags.confirmar;
-        if (!proceed && canPromptInteractively()) {
-          console.log(`SQL a executar: ${positional[0]}`);
-          proceed = await askYesNo('Confirma a execucao?');
-        }
+        console.log(`SQL a executar: ${positional[0]}`);
+        const proceed = await resolveConfirmation({
+          hasConfirmFlag: !!flags.confirmar,
+          question: 'Confirma a execucao?',
+        });
         const result = await db.runExec(positional[0], proceed);
         if (result.dryRun) {
           console.log(`(dry-run, nada foi executado) SQL: ${result.sql}\nAdicione --confirmar pra executar de verdade (ou rode num terminal interativo pra confirmar na hora).`);
