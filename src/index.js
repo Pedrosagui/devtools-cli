@@ -18,6 +18,7 @@ Jira:
   jira comentar <KEY> "<texto>"
   jira mover <KEY> "<nome da coluna>"
   jira atribuir <KEY> --eu
+  jira vincular-epico <KEY> <EPIC_KEY>
   jira anexar <KEY> <caminho-do-arquivo>
   jira excluir <KEY> --confirmar
 
@@ -101,6 +102,9 @@ async function main() {
         if (!accountId) throw new Error('Use --eu ou --conta <accountId>');
         await jira.assignIssue(positional[0], accountId);
         printAndAudit(fullCommand, positional, `${positional[0]} atribuido`);
+      } else if (command === 'vincular-epico') {
+        await jira.linkEpic(positional[0], positional[1]);
+        printAndAudit(fullCommand, positional, `${positional[0]} vinculado ao epico ${positional[1]}`);
       } else if (command === 'anexar') {
         await jira.attachFile(positional[0], positional[1]);
         printAndAudit(fullCommand, positional, `Anexo enviado pra ${positional[0]}`);

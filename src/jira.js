@@ -151,6 +151,13 @@ export async function assignIssue(key, accountId) {
   });
 }
 
+export async function linkEpic(key, epicKey) {
+  await jiraFetch(`/issue/${key}`, {
+    method: 'PUT',
+    body: JSON.stringify({ fields: { parent: { key: epicKey } } }),
+  });
+}
+
 export async function attachFile(key, filePath) {
   const absolute = path.resolve(filePath);
   const buffer = fs.readFileSync(absolute);
