@@ -5,27 +5,34 @@ import path from 'node:path';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
-function required(name) {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Variavel de ambiente ${name} nao configurada. Copie .env.example para .env e preencha.`);
-  }
-  return value;
-}
-
 export const config = {
   jira: {
-    site: required('JIRA_SITE').replace(/\/$/, ''),
-    email: required('JIRA_EMAIL'),
-    token: required('JIRA_TOKEN'),
+    site: (process.env.JIRA_SITE || '').replace(/\/$/, ''),
+    email: process.env.JIRA_EMAIL || '',
+    token: process.env.JIRA_TOKEN || '',
     projectId: process.env.JIRA_PROJECT_ID || '',
     defaultIssueTypeId: process.env.JIRA_DEFAULT_ISSUETYPE_ID || '',
   },
   pg: {
     host: process.env.PG_HOST || 'localhost',
     port: Number(process.env.PG_PORT || 5432),
-    database: required('PG_DATABASE'),
+    database: process.env.PG_DATABASE || '',
     user: process.env.PG_USER || 'postgres',
     password: process.env.PG_PASSWORD || '',
   },
 };
+
+export function requireJiraConfig() {
+  const missing = ['site', 'email', 'token'].filter((k) => !config.jira[k]);
+  if (missing.length) {
+    throw new Error(
+      `Faltando JIRA_${missing.map((m) => m.toUpperCase()).join(', JIRA_')} no .env - copie .env.example para .env e preencha.`
+    );
+  }
+}
+
+export function requirePgConfig() {
+  if (!config.pg.database) {
+    throw new Error('PG_DATABASE nao configurado no .env - preencha as variaveis PG_* antes de usar comandos "db".');
+  }
+}

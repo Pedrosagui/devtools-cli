@@ -4,20 +4,69 @@ CLI local pra operações de Jira e Postgres, com credenciais fora do chat e for
 
 Feito pra ser usado tanto por humanos quanto por agentes de IA (Claude Code, Gemini/Antigravity, etc.) rodando neste projeto. Se você é uma IA lendo isso pela primeira vez: use este CLI em vez de montar `curl`/`psql` na mão — é mais rápido, não expõe credencial no comando, e os comandos abaixo já cobrem os fluxos de trabalho reais deste projeto.
 
-## Instalação
+## Instalação (configure suas próprias credenciais)
+
+Este repositório é público e não tem nenhuma credencial dentro — cada pessoa que for usar precisa criar seu próprio arquivo `.env` local com as suas chaves. Ele nunca é commitado (está no `.gitignore` desde o primeiro commit) e nunca aparece em nenhum comando ou log.
+
+### Passo 1 — instalar
 
 ```bash
+git clone https://github.com/Pedrosagui/devtools-cli.git
 cd devtools-cli
 npm install
 cp .env.example .env
 ```
 
-Preencha o `.env` com:
-- `JIRA_SITE`, `JIRA_EMAIL`, `JIRA_TOKEN` — token gerado em [id.atlassian.com](https://id.atlassian.com/manage-profile/security/api-tokens)
-- `JIRA_PROJECT_ID`, `JIRA_DEFAULT_ISSUETYPE_ID` — descubra rodando `devtools jira ver <QUALQUER-CARD>` uma vez com um projeto conhecido, ou consulte no Jira
-- `PG_*` — credenciais do Postgres local de desenvolvimento
+### Passo 2 — gerar seu token do Jira
 
-O `.env` nunca é commitado (está no `.gitignore` desde o primeiro commit).
+1. Acesse [id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens) (logado com a conta que você usa no Jira).
+2. Clique em **Create API token**, dê um nome (ex: `devtools-cli`) e copie o token gerado — ele só aparece uma vez.
+3. Abra o `.env` que você criou no passo 1 e preencha:
+   ```
+   JIRA_SITE=https://SEU-SITE.atlassian.net
+   JIRA_EMAIL=seu-email@exemplo.com
+   JIRA_TOKEN=o-token-que-voce-acabou-de-copiar
+   ```
+   `JIRA_SITE` é a URL que aparece no seu navegador quando você está no Jira (antes do `/jira/...`).
+
+### Passo 3 — descobrir o id do seu projeto (sem precisar procurar no Jira)
+
+Com `JIRA_SITE`/`JIRA_EMAIL`/`JIRA_TOKEN` já preenchidos, rode:
+
+```bash
+node src/index.js jira projeto SIGLA-DO-PROJETO
+```
+
+(a sigla é o prefixo que aparece nas suas issues, tipo o `KAN` de `KAN-150` — se não souber, é a primeira parte de qualquer card seu no Jira). O comando devolve o `id` numérico do projeto e a lista de tipos de issue disponíveis (Bug, História, Epic, etc.), cada um com seu id. Copie pro `.env`:
+
+```
+JIRA_PROJECT_ID=10000
+JIRA_DEFAULT_ISSUETYPE_ID=10004
+```
+
+(`JIRA_DEFAULT_ISSUETYPE_ID` é o tipo usado quando você não passa `--tipo` em `criar-card` — escolha o que fizer mais sentido pro seu fluxo, ex: o id de "Tarefa" ou "História".)
+
+### Passo 4 — credenciais do Postgres (opcional, só se for usar os comandos `db`)
+
+Preencha com os dados do seu banco de desenvolvimento local:
+
+```
+PG_HOST=localhost
+PG_PORT=5432
+PG_DATABASE=nome-do-seu-banco
+PG_USER=postgres
+PG_PASSWORD=sua-senha-local
+```
+
+Se você só vai usar os comandos de Jira, pode deixar essa parte em branco — o CLI só reclama do Postgres quando você de fato roda um comando `db`.
+
+### Pronto
+
+```bash
+node src/index.js jira ver ALGUM-CARD-SEU
+```
+
+Se devolver os dados do card, está tudo certo.
 
 ## Referência de comandos
 
@@ -28,6 +77,7 @@ node src/index.js help
 ### Jira
 
 ```bash
+devtools jira projeto KAN
 devtools jira buscar "project = KAN AND status != Concluído"
 devtools jira ver KAN-150
 devtools jira criar-card --tipo "História" --resumo "..." --descricao "..." --prioridade "High" [--epico KAN-150]
@@ -49,11 +99,13 @@ devtools db executar "DELETE FROM weekly_matches WHERE id='...'" --confirmar
 
 `db consultar` só aceita `SELECT`. `db executar` não aceita `SELECT`, e sem `--confirmar` só mostra o SQL que rodaria (dry-run) sem executar nada.
 
+**Confirmação de ações destrutivas (`db executar`, `jira excluir`):** se você rodar o comando num terminal interativo de verdade (você digitando direto no PowerShell/bash), sem passar `--confirmar` o CLI mostra o que vai fazer e pergunta `(s/N)` ali mesmo — não precisa já saber de antemão que precisava do flag. Se o comando for disparado por um agente/script (sem terminal interativo por trás, como quando uma IA roda via ferramenta de shell), ele nunca fica esperando resposta: cai direto no modo seguro, só mostra o que faria e exige `--confirmar` explícito na chamada.
+
 ---
 
 ## Guia de uso por cenário
 
-Este projeto (BomDBola) segue algumas convenções de fluxo de trabalho no Jira. Os exemplos abaixo mostram como fazer cada uma usando o CLI.
+Convenções de fluxo de trabalho no Jira que valem a pena adotar (ajuste pro seu próprio projeto/time) — os exemplos abaixo mostram como fazer cada uma usando o CLI. As chaves de exemplo (`KAN-145`) são só ilustrativas, troque pela sigla do seu projeto.
 
 ### 1. Pegar um card pra trabalhar
 
@@ -78,7 +130,7 @@ Se o card não pôde ser validado de ponta a ponta (ex: depende de um endpoint q
 
 ### 3. Achar um bug em um card que já foi entregue
 
-**Regra importante deste projeto: nunca reabrir um card que já está "Concluído".** Se testando algo você encontrar um problema numa funcionalidade já entregue, abra um card **novo**, referenciando o original pela chave — nunca transicione o card antigo de volta.
+**Convenção recomendada: nunca reabrir um card que já está "Concluído".** Se testando algo você encontrar um problema numa funcionalidade já entregue, abra um card **novo**, referenciando o original pela chave — nunca transicione o card antigo de volta. Mantém o histórico de entrega limpo (fica claro quando algo foi entregue vs. quando uma regressão foi encontrada).
 
 ```bash
 devtools jira criar-card --tipo "História" \

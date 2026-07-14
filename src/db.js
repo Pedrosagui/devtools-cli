@@ -1,9 +1,10 @@
 import pg from 'pg';
-import { config } from './config.js';
+import { config, requirePgConfig } from './config.js';
 
 const { Client } = pg;
 
 async function withClient(fn) {
+  requirePgConfig();
   const client = new Client(config.pg);
   await client.connect();
   try {

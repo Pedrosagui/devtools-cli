@@ -1,4 +1,4 @@
-import { config } from './config.js';
+import { config, requireJiraConfig } from './config.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -8,6 +8,7 @@ function authHeader() {
 }
 
 async function jiraFetch(endpoint, options = {}) {
+  requireJiraConfig();
   const url = `${config.jira.site}/rest/api/3${endpoint}`;
   const headers = {
     Authorization: authHeader(),
@@ -49,6 +50,17 @@ function toADF(text) {
 
 export async function whoAmI() {
   return jiraFetch('/myself');
+}
+
+export async function projectInfo(projectKey) {
+  const project = await jiraFetch(`/project/${projectKey}`);
+  const meta = await jiraFetch(`/issue/createmeta/${project.id}/issuetypes`);
+  return {
+    projectId: project.id,
+    projectKey: project.key,
+    projectName: project.name,
+    issueTypes: meta.issueTypes.map((t) => ({ id: t.id, name: t.name })),
+  };
 }
 
 export async function searchIssues(jql, fields = 'summary,status,issuetype,priority') {

@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 import { parseArgs } from './args.js';
 import { logAction } from './audit.js';
+import { canPromptInteractively, askYesNo } from './confirm.js';
 import * as jira from './jira.js';
 import * as db from './db.js';
 
-const HELP = `devtools - CLI local para Jira e Postgres (BomDBola)
+const HELP = `devtools - CLI local para Jira e Postgres
 
 Uso: devtools <grupo> <comando> [args] [--flags]
 
 Jira:
+  jira projeto <CHAVE-DO-PROJETO>   (ex: KAN) - descobre o id do projeto e os tipos de issue, pra preencher o .env
   jira buscar "<jql>"
   jira ver <KEY>
   jira criar-card --tipo <Tipo> --resumo "<texto>" [--descricao "<texto>"] [--prioridade <Nome>] [--epico <KEY>]
@@ -21,6 +23,12 @@ Jira:
 Postgres (banco de dev configurado no .env):
   db consultar "<SELECT ...>"
   db executar "<SQL>" --confirmar   (sem --confirmar so mostra o que faria)
+
+Acoes destrutivas (excluir card, db executar) pedem --confirmar. Rodando num
+terminal interativo de verdade, sem --confirmar o CLI pergunta na hora (s/N)
+em vez de exigir que voce ja saiba de antemao. Rodando via agente/script (sem
+TTY), sempre cai no modo seguro: só mostra o que faria e exige --confirmar
+explicito na proxima chamada.
 
 Exemplos:
   devtools jira mover KAN-150 "Em andamento"
@@ -45,7 +53,10 @@ async function main() {
 
   try {
     if (group === 'jira') {
-      if (command === 'buscar') {
+      if (command === 'projeto') {
+        const info = await jira.projectInfo(positional[0]);
+        printAndAudit(fullCommand, positional, info);
+      } else if (command === 'buscar') {
         const issues = await jira.searchIssues(positional[0]);
         printAndAudit(fullCommand, positional, issues);
       } else if (command === 'ver') {
@@ -75,7 +86,11 @@ async function main() {
         await jira.attachFile(positional[0], positional[1]);
         printAndAudit(fullCommand, positional, `Anexo enviado pra ${positional[0]}`);
       } else if (command === 'excluir') {
-        if (!flags.confirmar) {
+        let proceed = !!flags.confirmar;
+        if (!proceed && canPromptInteractively()) {
+          proceed = await askYesNo(`Isso vai excluir ${positional[0]} permanentemente. Confirma?`);
+        }
+        if (!proceed) {
           console.log(`Isso vai excluir ${positional[0]} permanentemente. Rode de novo com --confirmar pra seguir.`);
           return;
         }
@@ -89,9 +104,14 @@ async function main() {
         const result = await db.runQuery(positional[0]);
         printAndAudit(fullCommand, positional, result);
       } else if (command === 'executar') {
-        const result = await db.runExec(positional[0], !!flags.confirmar);
+        let proceed = !!flags.confirmar;
+        if (!proceed && canPromptInteractively()) {
+          console.log(`SQL a executar: ${positional[0]}`);
+          proceed = await askYesNo('Confirma a execucao?');
+        }
+        const result = await db.runExec(positional[0], proceed);
         if (result.dryRun) {
-          console.log(`(dry-run, nada foi executado) SQL: ${result.sql}\nAdicione --confirmar pra executar de verdade.`);
+          console.log(`(dry-run, nada foi executado) SQL: ${result.sql}\nAdicione --confirmar pra executar de verdade (ou rode num terminal interativo pra confirmar na hora).`);
         } else {
           printAndAudit(fullCommand, positional, result);
         }
