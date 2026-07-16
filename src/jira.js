@@ -158,6 +158,13 @@ export async function linkEpic(key, epicKey) {
   });
 }
 
+export async function renameIssue(key, newSummary) {
+  await jiraFetch(`/issue/${key}`, {
+    method: 'PUT',
+    body: JSON.stringify({ fields: { summary: newSummary } }),
+  });
+}
+
 export async function attachFile(key, filePath) {
   const absolute = path.resolve(filePath);
   const buffer = fs.readFileSync(absolute);
